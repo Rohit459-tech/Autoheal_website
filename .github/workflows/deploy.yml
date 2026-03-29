@@ -1,0 +1,58 @@
+name: CI-CD Deploy to EC2
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t autoheal-flask:${{ github.sha }} .
+          docker tag autoheal-flask:${{ github.sha }} autoheal-flask:latest
+
+      - name: Export image as tar.gz
+        run: |
+          docker save autoheal-flask:${{ github.sha }} autoheal-flask:latest | gzip > autoheal-flask-image.tar.gz
+          ls -lh autoheal-flask-image.tar.gz
+
+      - name: Copy image to EC2 (SCP)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          source: "autoheal-flask-image.tar.gz"
+          target: "/home/${{ secrets.EC2_USER }}/deploy"
+
+      - name: Deploy on EC2 (SSH)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          script: |
+            set -euo pipefail
+            mkdir -p ~/deploy
+            cd ~/deploy
+            ls -lh autoheal-flask-image.tar.gz
+
+            # Docker is expected to be installed already (see README)
+            gunzip -c autoheal-flask-image.tar.gz | docker load
+
+            # Replace container
+            docker rm -f autoheal-flask >/dev/null 2>&1 || true
+            docker run -d --restart unless-stopped --name autoheal-flask -p 80:5000 autoheal-flask:latest
+
+            # Quick smoke check (best-effort)
+            sleep 2
+            curl -fsS --max-time 5 http://127.0.0.1/health || (docker logs --tail 200 autoheal-flask && exit 1)
+

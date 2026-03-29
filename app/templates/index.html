@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auto-Healing Website</title>
+    <meta name="description" content="A beginner-friendly DevOps project: Flask + Docker + CI/CD + Auto-heal monitoring." />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <div class="bg"></div>
+    <main class="container">
+      <header class="header">
+        <div class="logo" aria-hidden="true">AH</div>
+        <div class="header-text">
+          <h1>Auto-Healing Website</h1>
+          <p class="subtitle">Flask • Docker • GitHub Actions • AWS EC2 (Free Tier)</p>
+        </div>
+        <div class="status-pill" id="statusPill">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="status-text">Checking health…</span>
+        </div>
+      </header>
+
+      <section class="grid">
+        <article class="card">
+          <h2>What this demo does</h2>
+          <ul class="list">
+            <li>Serves a simple website on <code>/</code></li>
+            <li>Exposes a health endpoint on <code>/health</code></li>
+            <li>Runs inside Docker (Gunicorn)</li>
+            <li>Can auto-restart via a monitoring script + cron on EC2</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h2>Quick links</h2>
+          <div class="buttons">
+            <a class="btn primary" href="/" aria-label="Open home route">Open /</a>
+            <a class="btn" href="/health" aria-label="Open health route">Open /health</a>
+          </div>
+          <p class="hint">
+            Tip: if you’re running locally via Docker, you’ll likely open
+            <code>http://localhost:8080</code>.
+          </p>
+        </article>
+
+        <article class="card wide">
+          <h2>Auto-heal proof (on EC2)</h2>
+          <p>
+            The monitor checks <code>/health</code> every minute. If it fails, it removes and re-runs the container.
+          </p>
+          <div class="codebox">
+            <div class="codebox-title">Failure test</div>
+            <pre><code>docker stop autoheal-flask
+# within a minute, the monitor brings it back
+curl -fsS http://127.0.0.1/health</code></pre>
+          </div>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <span>Built for a real-world DevOps learning path.</span>
+        <span class="sep">•</span>
+        <span>Routes: <a href="/">/</a> <span class="muted">|</span> <a href="/health">/health</a></span>
+      </footer>
+    </main>
+
+    <script>
+      async function checkHealth() {
+        const pill = document.getElementById("statusPill");
+        const text = pill.querySelector(".status-text");
+        try {
+          const res = await fetch("/health", { cache: "no-store" });
+          if (!res.ok) throw new Error("bad status");
+          const data = await res.json();
+          pill.classList.remove("bad");
+          pill.classList.add("good");
+          text.textContent = data && data.status ? `Healthy (${data.status})` : "Healthy";
+        } catch (e) {
+          pill.classList.remove("good");
+          pill.classList.add("bad");
+          text.textContent = "Unhealthy";
+        }
+      }
+      checkHealth();
+      setInterval(checkHealth, 5000);
+    </script>
+  </body>
+</html>
+
