@@ -4,6 +4,11 @@ on:
   push:
     branches: ["main"]
 
+env:
+  # GitHub is deprecating Node.js 20 on hosted runners.
+  # This opts your workflow into Node.js 24 runtime for JavaScript-based actions now.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
